@@ -44,7 +44,7 @@ class ScratchUserSession:
         self.HEADERS['Cookie'] = 'scratchcsrftoken=' + self.lib.utils.session.cookies.get('scratchcsrftoken') + '; scratchlanguage=en'
         self.HEADERS['X-CSRFToken'] = self.lib.utils.session.cookies.get('scratchcsrftoken')
         self.lib.utils.request(path='/login/', method='post', payload=json.dumps({'username': username, 'password': password, 'csrftoken':self.lib.utils.session.cookies.get('scratchcsrftoken'), 'csrfmiddlewaretoken':self.lib.utils.session.cookies.get('scratchcsrftoken'),'captcha_challenge':'','captcha_response':'','embed_captcha':False,'timezone':'America/New_York'}))
-        self.HEADERS['Cookie'] = 'scratchcsrftoken=' + self.lib.utils.session.cookies.get_dict()['scratchcsrftoken'] + ';scratchsessionsid=' + self.lib.utils.session.cookies.get('scratchsessionsid') + '; scratchlanguage=en'
+        self.HEADERS['Cookie'] = 'scratchcsrftoken=' + self.lib.utils.session.cookies.get_dict()['scratchcsrftoken'] + '; scratchsessionsid=' + self.lib.utils.session.cookies.get('scratchsessionsid') + '; scratchlanguage=en'
         self.HEADERS['X-CSRFToken'] = self.lib.utils.session.cookies.get('scratchcsrftoken')
         self.lib.set.csrf_token = self.lib.utils.session.cookies.get('scratchcsrftoken')
         self.lib.set.sessions_id = self.lib.utils.session.cookies.get('scratchsessionsid')
@@ -83,8 +83,7 @@ class ScratchUserSession:
     def _users_comment(self, user, comment):
         return self.lib.utils.request(path='/site-api/users/followers/' + usr + '/remove/?usernames=' + self.lib.set.username)
     def _cloud_setvar(self, var, value, projId):
-        cloudToken = s.lib.utils.request(method='GET', path='/projects/' + str(projId) + '/cloud-data.js').text.rsplit('\n')[-28].replace(' ', '')[13:49]
-        print(cloudToken)
+        cloudToken = self.lib.utils.request(method='GET', path='/projects/' + str(projId) + '/cloud-data.js').text.rsplit('\n')[-28].replace(' ', '')[13:49]
         bc = hashlib.md5()
         bc.update(cloudToken.encode())
         r = self.lib.utils.request(method='POST', path='/varserver', payload=json.dumps({"token2": bc.hexdigest(), "project_id": str(projId), "value": str(value), "method": "set", "token": cloudToken, "user": self.lib.set.username, "name": '☁ ' + var}))
@@ -117,8 +116,6 @@ class ScratchUserSession:
             headers.update(options['headers'])
         if 'payload' in options:
             headers['Content-Length'] = len(str(options['payload']))
-            if type(options['payload']) != str:
-                options['payload'] = json.dumps(options['payload'])
         if 'port' in options:
             if options['port'] == None:
                 port = ''
@@ -172,7 +169,6 @@ class CloudSession:
             }
         obj.update(options)
         ob = (json.dumps(obj) + '\r\n').encode('utf-8')
-        print(ob)
         self.connection.send(ob)
         md5 = hashlib.md5()
         md5.update(self.md5token.encode())

@@ -5,6 +5,6 @@ setup(name='scratchapi',
       description='Scratch API Script',
       author='Dylan Beswick',
       author_email='djbeswick64@gmail.com',
-      url='http://www.python.org/sigs/distutils-sig/',
+      url='https://github.com/Dylan5797/ScratchAPI/',
       install_requires=['requests>=2.8.1'],
      )

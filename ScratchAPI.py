@@ -23,11 +23,12 @@ class ScratchUserSession:
     CDN_SERVER = 'cdn.scratch.mit.edu'
     CLOUD = 'cloud.scratch.mit.edu'
     CLOUD_PORT = 531
-    def __init__(self, username, password): # Much self lol
+    def __init__(self, username, password):
         self.lib.utils.request = self._rcallarg
         self.lib.set.username = username
         self.lib.utils.session = requests.session()
         self.tools.verifySession = self._tools_verifySession
+        self.tools.update = self._tools_update
         self.projects.get = self._projects_getProject
         self.projects.set = self._projects_setProject
         self.backpack.get = self._backpack_getBackpack
@@ -40,14 +41,11 @@ class ScratchUserSession:
         self.cloud.create_var = self._cloud_makevar
         self.cloud.get_var = self._cloud_getvar
         self.HEADERS = {'X-Requested-With': 'XMLHttpRequest', 'Referer':'https://scratch.mit.edu/'}
-        self.lib.utils.request(path='/csrf_token/')
+        self.lib.utils.request(path='/csrf_token/', update=False)
         self.HEADERS['Cookie'] = 'scratchcsrftoken=' + self.lib.utils.session.cookies.get('scratchcsrftoken') + '; scratchlanguage=en'
         self.HEADERS['X-CSRFToken'] = self.lib.utils.session.cookies.get('scratchcsrftoken')
-        self.lib.utils.request(path='/login/', method='post', payload=json.dumps({'username': username, 'password': password, 'csrftoken':self.lib.utils.session.cookies.get('scratchcsrftoken'), 'csrfmiddlewaretoken':self.lib.utils.session.cookies.get('scratchcsrftoken'),'captcha_challenge':'','captcha_response':'','embed_captcha':False,'timezone':'America/New_York'}))
-        self.HEADERS['Cookie'] = 'scratchcsrftoken=' + self.lib.utils.session.cookies.get_dict()['scratchcsrftoken'] + '; scratchsessionsid=' + self.lib.utils.session.cookies.get('scratchsessionsid') + '; scratchlanguage=en'
-        self.HEADERS['X-CSRFToken'] = self.lib.utils.session.cookies.get('scratchcsrftoken')
-        self.lib.set.csrf_token = self.lib.utils.session.cookies.get('scratchcsrftoken')
-        self.lib.set.sessions_id = self.lib.utils.session.cookies.get('scratchsessionsid')
+        self.lib.utils.request(path='/login/', method='post', update=False, payload=json.dumps({'username': username, 'password': password, 'csrftoken':self.lib.utils.session.cookies.get('scratchcsrftoken'), 'csrfmiddlewaretoken':self.lib.utils.session.cookies.get('scratchcsrftoken'),'captcha_challenge':'','captcha_response':'','embed_captcha':False,'timezone':'America/New_York'}))
+        self.tools.update()
     def _projects_getProject(self, projectId):
         return self.lib.utils.request(path='/internalapi/project/' + projectId + '/get/', server=ScratchUserSession.PROJECTS_SERVER).json()
     def _projects_setProject(self, projectId, payload):
@@ -101,13 +99,18 @@ class ScratchUserSession:
         bc = hashlib.md5()
         bc.update(cloudToken.encode())
         return {"token2": bc.hexdigest(), "project_id": str(projId), "value": str(value), "method": "create", "token": cloudToken, "user": self.lib.set.username, "name": '☁ ' + var} 
+    def _tools_update(self):
+        self.lib.set.csrf_token = self.lib.utils.session.cookies.get('scratchcsrftoken')
+        self.lib.set.sessions_id = self.lib.utils.session.cookies.get('scratchsessionsid')
+        self.HEADERS['Cookie'] = 'scratchcsrftoken=' + self.lib.utils.session.cookies.get_dict()['scratchcsrftoken'] + '; scratchsessionsid=' + self.lib.utils.session.cookies.get('scratchsessionsid') + '; scratchlanguage=en'
+        self.HEADERS['X-CSRFToken'] = self.lib.utils.session.cookies.get('scratchcsrftoken')
     def _rcallarg(self, **options):
         headers = {}
         for x in self.HEADERS:
             headers[x] = self.HEADERS[x]
         method = "get"
         server = ScratchUserSession.SERVER
-        port = ':443'
+        port = ''
         if 'method' in options:
             method = options['method']
         if 'server' in options:
@@ -121,20 +124,33 @@ class ScratchUserSession:
                 port = ''
             else:
                 port = ':' + str(options['port'])
+        if 'update' in options:
+            if options['update'] == True:
+                self.tools.update()             
+        else:
+            self.tools.update()
         server = 'https://' + server
-        def do():
+        def request():
             if 'payload' in options:
                 r = getattr(self.lib.utils.session, method.lower())(server + port + options['path'], data=options['payload'], headers=headers)
             else:
                 r = getattr(self.lib.utils.session, method.lower())(server + port + options['path'], headers=headers)
             return r
-        for x in range(0, 2): #Try again twice if error
+        for x in range(0, 3):
             try:
-                r = do()    
+                r = request()    
             except:
+                r = None
                 continue
             else:
                 break
+        if not r:
+            raise ConnectionError('Connection failed on all three attempts')
+        if 'update' in options:
+            if options['update'] == True:
+                self.tools.update()             
+        else:
+            self.tools.update()
         return r
     class lib:
         class set: pass

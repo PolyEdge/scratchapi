@@ -31,3 +31,8 @@ Set a cloud variable:
 ```python
 s.cloud.set_var('Variable', 12345, 4453648)
 ```
+
+## Credits
+The cloud data interface information was acquired from various topics on the [Scratch Forums](https://scratch.mit.edu/discuss).
+
+[TheLogFather](https://github.com/TheLogFather) helped out with various wrappers and conveniences for cloud data.

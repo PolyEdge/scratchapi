@@ -13,7 +13,7 @@ scratch = scratchapi.ScratchUserSession('Username', 'password')
 ```
 Now, you can verify your session to see if you logged in correctly:
 ```python
-scratch.tools.verifySession()
+scratch.tools.verify_session()
 ```
 There are a lot of things you can you when you're logged in!
 

@@ -269,8 +269,10 @@ class CloudSession:
     def set_var(self, name, value):
         self._send('set', {'name': '☁ ' + name, 'value': value})
 
-    def create_var(self, name, value):
-        self._send('create', {'name': '☁ ' + name})
+    def create_var(self, name, value=None):
+        if value == None:
+            value = 0
+        self._send('create', {'name': '☁ ' + name, 'value':value})
 
     def rename_var(self, oldname, newname):
         self._send('rename', {'name': '☁ ' + oldname, 'new_name': '☁ ' + newname})

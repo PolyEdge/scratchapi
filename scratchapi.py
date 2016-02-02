@@ -15,6 +15,7 @@ import json
 import socket
 import hashlib
 import os
+import sys
 import traceback
 
 class ScratchUserSession:
@@ -236,40 +237,62 @@ class ScratchUserSession:
 
 
 class CloudSession:
-    def __init__(self, projectId, scratch):
-        self.scratch = scratch
-        self.user = self.scratch.lib.set.username
-        self.projectId = projectId
-        self.cloudId = self.scratch.lib.set.sessions_id
-        self.token = self.scratch.lib.utils.request(method='GET', path='/projects/' + str(self.projectId) + '/cloud-data.js').text.rsplit('\n')[-28].replace(' ', '')[13:49]
+    def __init__(self, projectId, session):
+        if type(session) == ScratchUserSession:
+            self._scratch = session
+        else:
+            self._scratch = ScratchUserSession(session[0], session[1])
+        self._user = self._scratch.lib.set.username
+        self._projectId = projectId
+        self._cloudId = self._scratch.lib.set.sessions_id
+        self._token = self._scratch.lib.utils.request(method='GET', path='/projects/' + str(self._projectId) + '/cloud-data.js').text.rsplit('\n')[-28].replace(' ', '')[13:49]
         md5 = hashlib.md5()
-        md5.update(self.cloudId.encode())
-        self.md5token = md5.hexdigest()
-        self.connection = socket.create_connection((ScratchUserSession.CLOUD, ScratchUserSession.CLOUD_PORT))
+        md5.update(self._cloudId.encode())
+        self._md5token = md5.hexdigest()
+        self._connection = socket.create_connection((ScratchUserSession.CLOUD, ScratchUserSession.CLOUD_PORT))
         self._send('handshake', {})
     def _send(self, method, options):
         obj = {
-            'token': self.token,
-            'token2': self.md5token,
-            'user': self.user,
-            'project_id': str(self.projectId),
+            'token': self._token,
+            'token2': self._md5token,
+            'user': self._user,
+            'project_id': str(self._projectId),
             'method': method
             }
         obj.update(options)
         ob = (json.dumps(obj) + '\r\n').encode('utf-8')
-        self.connection.send(ob)
+        self._connection.send(ob)
         md5 = hashlib.md5()
-        md5.update(self.md5token.encode())
-        self.md5token = md5.hexdigest()
+        md5.update(self._md5token.encode())
+        self._md5token = md5.hexdigest()
         
     def set_var(self, name, value):
         self._send('set', {'name': '☁ ' + name, 'value': value})
 
     def create_var(self, name, value):
-        self._send('create', {'name': '☁ ' + name, 'value': value})
+        self._send('create', {'name': '☁ ' + name})
 
+    def rename_var(self, oldname, newname):
+        self._send('rename', {'name': '☁ ' + oldname, 'new_name': '☁ ' + newname})
+    
+    def delete_var(self, name):
+        self._send('delete', {'name':'☁ ' + name})
+    
     def get_var(self, name):
-        return self.scratch.cloud.get_var(name,self.projectId)
+        return self._scratch.cloud.get_var(name,self._projectId)
 
     def get_vars(self):
-        return self.scratch.cloud.get_vars(self.projectId)
+        return self._scratch.cloud.get_vars(self._projectId)
+
+if 'install' in sys.argv:
+    try:
+        f = open(os.path.dirname(os.__file__) + '/scratchapi.py', 'wb')
+        me = open(__file__, 'rb')
+        f.write(me.read())
+        f.close()
+        me.close()
+    except:
+        print('Error in install: ')
+        traceback.print_exc()
+        input('\n\n\nPress return to close\n')
+

@@ -248,6 +248,7 @@ class CloudSession:
         self._token = self._scratch.lib.utils.request(method='GET', path='/projects/' + str(self._projectId) + '/cloud-data.js').text.rsplit('\n')[-28].replace(' ', '')[13:49]
         md5 = hashlib.md5()
         md5.update(self._cloudId.encode())
+        self._rollover = []
         self._md5token = md5.hexdigest()
         self._connection = socket.create_connection((ScratchUserSession.CLOUD, ScratchUserSession.CLOUD_PORT))
         self._send('handshake', {})
@@ -285,6 +286,51 @@ class CloudSession:
 
     def get_vars(self):
         return self._scratch.cloud.get_vars(self._projectId)
+        
+    def get_updates(self, timeout, maxCount=10):
+        count = 0
+        updates = []  # keep a dict of all name+value pairs received
+        self._connection.settimeout(timeout)  # recv will wait for given time
+        while count<maxCount:
+          data = ''.encode('utf-8')  # start off blank
+          while True:
+            try:  # keep concatenating receives (until ended with \n)
+              data = data + self._connection.recv(4096)  # raises exception if no data by timeout
+              if data[-1]==10:  break  # get out if we found terminating \n
+              self._connection.settimeout(0.1)  # allow time for more data
+            except:  # or until recv throws exception 'cos there's no data
+              break
+          if not data:  break  # get out if nothing received
+          self._connection.settimeout(0.01)  # allow quick check for more data
+          if data[0]==123:  # starts with left brace, so don't prepend rollover
+            self._rollover = []  # ...though will this rollover thing ever really be necessary?
+          data = self._rollover + data.decode('utf-8').split('\n')  # split up multiple updates
+          if data[-1]:  # last line was incomplete, so roll it over...
+            print('Warning: last line of data incomplete?! '+data[-1].encode('utf-8'))  # FYI for now...
+            self._rollover = [data[-1]]  # put it into rollover for next receive
+          else:
+            self._rollover = []
+          data = data[:-1]  # never need last line - it's either blank or it's rolled over
+          for line in data:
+            if line:  # ignore blank lines (shouldn't get any?)
+              try:
+                line = json.loads(line)  # try to parse this entry
+                name = line['name']  # try to extract var name
+                value = str(line['value'])  # should be string anyway?
+                if name.startswith('☁ '):
+                  updates.append((name[2:], value))  # avoid leading cloud+space chars
+                else:
+                  updates.append((name, value))  # probably never happens?
+                count = count + 1  # count how many updates we've successfully parsed
+              except:  # just ignore data if we can't get 'name'+'value' from it
+                continue  # get next entry, or go back to receive more
+        self._connection.settimeout(None)  # reset timeout to default
+        return updates
+    def get_new_values(self, timeout, max_values=10):
+        nv = {}
+        for x in self.get_updates(timeout, max_values):
+            nv[x[0]] = x[1]
+        return nv
 
 if 'install' in sys.argv:
     try:

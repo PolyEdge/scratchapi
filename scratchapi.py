@@ -1,14 +1,14 @@
 #!python3
 # ScratchAPI 1.0
 # Written by Dylan5797 [https://dylan5797.github.io]
-#  _____        _             _____ ______ ___ ______  
-# |  __ \      | |           | ____|____  / _ \____  | 
-# | |  | |_   _| | __ _ _ __ | |__     / / (_) |  / /  
-# | |  | | | | | |/ _  |  _ \|___ \   / / \__  | / /   
-# | |__| | |_| | | (_| | | | |___) | / /    / / / /    
-# |_____/ \__  |_|\__|_|_| |_|____/ /_/    /_/ /_/     
-#          __/ |                                       
-#         |___/      
+#  _____        _             _____ ______ ___ ______
+# |  __ \      | |           | ____|____  / _ \____  |
+# | |  | |_   _| | __ _ _ __ | |__     / / (_) |  / /
+# | |  | | | | | |/ _  |  _ \|___ \   / / \__  | / /
+# | |__| | |_| | | (_| | | | |___) | / /    / / / /
+# |_____/ \__  |_|\__|_|_| |_|____/ /_/    /_/ /_/
+#          __/ |
+#         |___/
 
 import requests
 import json
@@ -31,37 +31,37 @@ class ScratchUserSession:
         self.lib.set.username = username
         self.lib.set.password = password
         self.lib.utils.session = requests.session()
-        
+
         self.tools.verify_session = self._tools_verifySession
         self.tools.update = self._tools_update
         self.tools.reload_session = self._tools_reload_session
-        
+
         self.projects.get = self._projects_getProject
         self.projects.set = self._projects_setProject
         self.projects.comment = self._projects_comment
         self.projects.get_meta = self._projects_get_meta
         self.projects.get_remix_data = self._projects_get_remixtree
-        
+
         self.backpack.get = self._backpack_getBackpack
         self.backpack.set = self._backpack_setBackpack
-        
+
         self.userpage.set_bio = self._userpage_setBio
         self.userpage.set_status = self._userpage_setStatus
         self.userpage.toggle_comments = self._userpage_toggleComments
-        
+
         self.users.follow = self._users_follow
         self.users.unfollow = self._users_unfollow
         self.users.get_message_count = self._users_get_message_count
         self.users.comment = self._users_comment
-        
+
         self.studios.comment = self._studios_comment
         self.studios.get_meta = self._studios_get_meta
-        
+
         self.cloud.set_var = self._cloud_setvar
         self.cloud.create_var = self._cloud_makevar
         self.cloud.get_var = self._cloud_getvar
         self.cloud.get_vars = self._cloud_getvars
-        
+
         self.HEADERS = {'X-Requested-With': 'XMLHttpRequest', 'Referer':'https://scratch.mit.edu/'}
         self.lib.utils.request(path='/csrf_token/', update=False)
         self.HEADERS['Cookie'] = 'scratchcsrftoken=' + self.lib.utils.session.cookies.get('scratchcsrftoken') + '; scratchlanguage=en'
@@ -146,7 +146,7 @@ class ScratchUserSession:
         cloudToken = s.lib.utils.request(method='GET', path='/projects/' + str(projId) + '/cloud-data.js').text.rsplit('\n')[-28].replace(' ', '')[13:49]
         bc = hashlib.md5()
         bc.update(cloudToken.encode())
-        return {"token2": bc.hexdigest(), "project_id": str(projId), "value": str(value), "method": "create", "token": cloudToken, "user": self.lib.set.username, "name": '☁ ' + var} 
+        return {"token2": bc.hexdigest(), "project_id": str(projId), "value": str(value), "method": "create", "token": cloudToken, "user": self.lib.set.username, "name": '☁ ' + var}
     def _tools_update(self):
         self.lib.set.csrf_token = self.lib.utils.session.cookies.get('scratchcsrftoken')
         self.lib.set.sessions_id = self.lib.utils.session.cookies.get('scratchsessionsid')
@@ -194,7 +194,7 @@ class ScratchUserSession:
                 port = ':' + str(options['port'])
         if 'update' in options:
             if options['update'] == True:
-                self.tools.update()             
+                self.tools.update()
         else:
             self.tools.update()
         if 'headers' in options:
@@ -210,7 +210,7 @@ class ScratchUserSession:
             return r
         for x in range(0, 3):
             try:
-                r = request()    
+                r = request()
             except:
                 r = None
                 continue
@@ -220,7 +220,7 @@ class ScratchUserSession:
             raise ConnectionError('Connection failed on all ' + str(retry) + ' attempts')
         if 'update' in options:
             if options['update'] == True:
-                self.tools.update()             
+                self.tools.update()
         else:
             self.tools.update()
         return r
@@ -266,7 +266,7 @@ class CloudSession:
         md5 = hashlib.md5()
         md5.update(self._md5token.encode())
         self._md5token = md5.hexdigest()
-        
+
     def set_var(self, name, value):
         self._send('set', {'name': '☁ ' + name, 'value': value})
 
@@ -277,16 +277,16 @@ class CloudSession:
 
     def rename_var(self, oldname, newname):
         self._send('rename', {'name': '☁ ' + oldname, 'new_name': '☁ ' + newname})
-    
+
     def delete_var(self, name):
         self._send('delete', {'name':'☁ ' + name})
-    
+
     def get_var(self, name):
         return self._scratch.cloud.get_var(name,self._projectId)
 
     def get_vars(self):
         return self._scratch.cloud.get_vars(self._projectId)
-        
+
     def get_updates(self, timeout, maxCount=10):
         count = 0
         updates = []  # keep a dict of all name+value pairs received
@@ -331,16 +331,3 @@ class CloudSession:
         for x in self.get_updates(timeout, max_values):
             nv[x[0]] = x[1]
         return nv
-
-if 'install' in sys.argv:
-    try:
-        f = open(os.path.dirname(os.__file__) + '/scratchapi.py', 'wb')
-        me = open(__file__, 'rb')
-        f.write(me.read())
-        f.close()
-        me.close()
-    except:
-        print('Error in install: ')
-        traceback.print_exc()
-        input('\n\n\nPress return to close\n')
-

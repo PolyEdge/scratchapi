@@ -19,8 +19,8 @@ setup(
 
     url='https://github.com/Dylan5797/ScratchAPI',
 
-    author='Dylan5797',
-    author_email='None@fake.com',
+    author='Dylan Beswick',
+    author_email='djbeswick64@gmail.com',
 
     classifiers=[
         'Development Status :: 3 - Alpha',
@@ -29,7 +29,7 @@ setup(
         'Programming Language :: Python :: 3',
     ],
 
-    keywords='scratch api cloud',
+    keywords=['scratch', 'api', 'cloud'],
 
     py_modules=["scratchapi"],
 

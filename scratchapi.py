@@ -26,10 +26,13 @@ class ScratchUserSession:
     CDN_SERVER = 'cdn.scratch.mit.edu'
     CLOUD = 'cloud.scratch.mit.edu'
     CLOUD_PORT = 531
-    def __init__(self, username, password):
+    def __init__(self, username, password, remember_password=False):
         self.lib.utils.request = self._rcallarg
         self.lib.set.username = username
-        self.lib.set.password = password
+        self.lib.set.password = None
+        self.lib.set.password_remembered = remember_password
+        if remember_password:
+            self.lib.set.password = password
         self.lib.utils.session = requests.session()
 
         self.tools.verify_session = self._tools_verifySession
@@ -69,21 +72,27 @@ class ScratchUserSession:
         self.lib.utils.request(path='/login/', method='post', update=False, payload=json.dumps({'username': username, 'password': password, 'csrftoken':self.lib.utils.session.cookies.get('scratchcsrftoken'), 'csrfmiddlewaretoken':self.lib.utils.session.cookies.get('scratchcsrftoken'),'captcha_challenge':'','captcha_response':'','embed_captcha':False,'timezone':'America/New_York'}))
         self.tools.update()
     def _projects_getProject(self, projectId):
-        return self.lib.utils.request(path='/internalapi/project/' + projectId + '/get/', server=ScratchUserSession.PROJECTS_SERVER).json()
+        return self.lib.utils.request(path='/internalapi/project/' + projectId + '/get/', server=self.PROJECTS_SERVER).json()
     def _projects_setProject(self, projectId, payload):
-        return self.lib.utils.request(server=ScratchUserSession.PROJECTS_SERVER, path='/internalapi/project/' + projectId + '/set/', payload=json.dumps(payload), method='post')
+        return self.lib.utils.request(server=self.PROJECTS_SERVER, path='/internalapi/project/' + projectId + '/set/', payload=json.dumps(payload), method='post')
     def _projects_get_meta(self, projid):
         return self.lib.utils.request(path='/api/v1/project/' + str(projid) + '/?format=json').json()
     def _projects_get_remixtree(self, projid):
         return self.lib.utils.request(path='/projects/' + str(projid) + '/remixtree/bare/').json()
     def _tools_verifySession(self):
         return self.lib.utils.request(path='/messages/ajax/get-message-count/', port=None).status_code == 200
-    def _tools_reload_session(self):
-        self.__init__(self.lib.set.username, self.lib.set.password)
+    def _tools_reload_session(self, password=None, remember_password=None):
+        if remember_password == None:
+            remember_password = self.lib.set.password_remembered
+        if (password == None) and (not self.lib.set.password_remembered):
+            raise AttributeError('Password not stored in class (use ScratchUserSesssion(\'User\', \'Password\', remember_password=True) to remember password, or supply your password in ScratchUserSession.tools.reload_session())')
+        if password == None:
+            password = self.lib.set.password
+        self.__init__(self.lib.set.username, password, remember_password=remember_password)
     def _backpack_getBackpack(self):
         return self.lib.utils.request(path='/internalapi/backpack/' + self.lib.set.username + '/get/').json()
     def _backpack_setBackpack(self, payload):
-        return self.lib.utils.request(server=ScratchUserSession.CDN_SERVER, path='/internalapi/backpack/' + self.lib.set.username + '/set/', method="post", payload=payload)
+        return self.lib.utils.request(server=self.CDN_SERVER, path='/internalapi/backpack/' + self.lib.set.username + '/set/', method="post", payload=payload)
     def _userpage_setStatus(self, payload):
         p2 = self.lib.utils.request(path='/site-api/users/all/' + self.lib.set.username).json()
         p = {}
@@ -178,8 +187,9 @@ class ScratchUserSession:
         for x in self.HEADERS:
             headers[x] = self.HEADERS[x]
         method = "get"
-        server = ScratchUserSession.SERVER
+        server = self.SERVER
         port = ''
+        update = True
         retry = 3
         if 'method' in options:
             method = options['method']
@@ -195,6 +205,8 @@ class ScratchUserSession:
         if 'update' in options:
             if options['update'] == True:
                 self.tools.update()
+            else:
+                update = False
         else:
             self.tools.update()
         if 'headers' in options:
@@ -204,24 +216,23 @@ class ScratchUserSession:
         server = 'https://' + server
         def request():
             if 'payload' in options:
-                r = getattr(self.lib.utils.session, method.lower())(server + port + options['path'], data=options['payload'], headers=headers)
+                return getattr(self.lib.utils.session, method.lower())(server + port + options['path'], data=options['payload'], headers=headers)
             else:
-                r = getattr(self.lib.utils.session, method.lower())(server + port + options['path'], headers=headers)
-            return r
-        for x in range(0, 3):
+                return getattr(self.lib.utils.session, method.lower())(server + port + options['path'], headers=headers)
+        success = False
+        for x in range(0, retry):
             try:
                 r = request()
-            except:
-                r = None
+            except requests.exceptions.BaseHTTPError:
                 continue
+            except AttributeError:
+                raise ValueError('Invalid HTTP method')
             else:
+                success = True
                 break
-        if r == None:
+        if not success:
             raise ConnectionError('Connection failed on all ' + str(retry) + ' attempts')
-        if 'update' in options:
-            if options['update'] == True:
-                self.tools.update()
-        else:
+        if update:
             self.tools.update()
         return r
     class lib:

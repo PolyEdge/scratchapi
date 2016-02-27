@@ -16,7 +16,6 @@ import socket
 import hashlib
 import os
 import sys
-import traceback
 
 class ScratchUserSession:
     SERVER = 'scratch.mit.edu'

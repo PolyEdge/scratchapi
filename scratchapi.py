@@ -1,4 +1,4 @@
-#!python3
+#!/usr/bin/env python3
 # ScratchAPI 1.0
 # Written by Dylan5797 [https://dylan5797.github.io]
 #  _____        _             _____ ______ ___ ______

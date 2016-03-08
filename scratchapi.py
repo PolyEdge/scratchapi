@@ -4,16 +4,16 @@
 The MIT License (MIT)
 Copyright (c) 2015 Dylan Beswick
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files 
-(the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, 
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files
+(the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge,
 publish, distribute, sublicense, and/or sell  copies of the Software, and to permit persons to whom the Software is furnished to do
 so, subject to the following conditions:
 
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF 
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE 
-FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION 
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
@@ -74,6 +74,9 @@ class ScratchUserSession:
         self.users.unfollow = self._users_unfollow
         self.users.get_message_count = self._users_get_message_count
         self.users.comment = self._users_comment
+
+        self.messages.get_message_count = self._users_get_message_count
+        self.messages.get_message_html  = self._get_message_html
 
         self.studios.comment = self._studios_comment
         self.studios.get_meta = self._studios_get_meta
@@ -199,7 +202,9 @@ class ScratchUserSession:
     def _users_get_message_count(self, user=None):
         if user == None:
             user = self.lib.set.username
-        return self.lib.utils.request('/proxy/users/' + user + '/activity/count', server=self.API_SERVER).json()['msg_count']
+        return self.lib.utils.request(path='/proxy/users/' + user + '/activity/count', server=self.API_SERVER).json()['msg_count']
+    def _get_message_html(self):
+        return self.lib.utils.request(path='/messages/')
     def _rcallarg(self, **options):
         headers = {}
         for x in self.HEADERS:
@@ -261,6 +266,7 @@ class ScratchUserSession:
     class backpack: pass
     class userpage: pass
     class users: pass
+    class messages: pass
     class studios: pass
     class cloud: pass
 

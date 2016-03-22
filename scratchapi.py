@@ -1,6 +1,6 @@
 #!python3
 # ScratchAPI 1.0
-# Written by Dylan5797 [https://dylan5797.github.io]
+# Written by Dylan5797 [https://dylan4.com]
 #  _____        _             _____ ______ ___ ______
 # |  __ \      | |           | ____|____  / _ \____  |
 # | |  | |_   _| | __ _ _ __ | |__     / / (_) |  / /
@@ -10,12 +10,11 @@
 #          __/ |
 #         |___/
 
-import requests
-import json
-import socket
-import hashlib
-import os
-import sys
+import requests as _requests
+import json as _json
+import socket as _socket
+import hashlib as _hashlib
+import os as _os
 
 class ScratchUserSession:
     SERVER = 'scratch.mit.edu'
@@ -32,7 +31,7 @@ class ScratchUserSession:
         self.lib.set.password_remembered = remember_password
         if remember_password:
             self.lib.set.password = password
-        self.lib.utils.session = requests.session()
+        self.lib.utils.session = _requests.session()
 
         self.tools.verify_session = self._tools_verifySession
         self.tools.update = self._tools_update
@@ -68,12 +67,12 @@ class ScratchUserSession:
         self.lib.utils.request(path='/csrf_token/', update=False)
         self.HEADERS['Cookie'] = 'scratchcsrftoken=' + self.lib.utils.session.cookies.get('scratchcsrftoken') + '; scratchlanguage=en'
         self.HEADERS['X-CSRFToken'] = self.lib.utils.session.cookies.get('scratchcsrftoken')
-        self.lib.utils.request(path='/login/', method='post', update=False, payload=json.dumps({'username': username, 'password': password, 'csrftoken':self.lib.utils.session.cookies.get('scratchcsrftoken'), 'csrfmiddlewaretoken':self.lib.utils.session.cookies.get('scratchcsrftoken'),'captcha_challenge':'','captcha_response':'','embed_captcha':False,'timezone':'America/New_York'}))
+        self.lib.utils.request(path='/login/', method='post', update=False, payload=_json.dumps({'username': username, 'password': password, 'csrftoken':self.lib.utils.session.cookies.get('scratchcsrftoken'), 'csrfmiddlewaretoken':self.lib.utils.session.cookies.get('scratchcsrftoken'),'captcha_challenge':'','captcha_response':'','embed_captcha':False,'timezone':'America/New_York'}))
         self.tools.update()
     def _projects_getProject(self, projectId):
         return self.lib.utils.request(path='/internalapi/project/' + projectId + '/get/', server=self.PROJECTS_SERVER).json()
     def _projects_setProject(self, projectId, payload):
-        return self.lib.utils.request(server=self.PROJECTS_SERVER, path='/internalapi/project/' + projectId + '/set/', payload=json.dumps(payload), method='post')
+        return self.lib.utils.request(server=self.PROJECTS_SERVER, path='/internalapi/project/' + projectId + '/set/', payload=_json.dumps(payload), method='post')
     def _projects_get_meta(self, projid):
         return self.lib.utils.request(path='/api/v1/project/' + str(projid) + '/?format=json').json()
     def _projects_get_remixtree(self, projid):
@@ -99,9 +98,9 @@ class ScratchUserSession:
             if i in ['comments_allowed', 'id', 'status', 'thumbnail_url', 'userId', 'username']:
                 p[i] = p2[i]
         p['status'] = payload
-        return self.lib.utils.request(path='/site-api/users/all/' + self.lib.set.username, method="put", payload=json.dumps(p))
+        return self.lib.utils.request(path='/site-api/users/all/' + self.lib.set.username, method="put", payload=_json.dumps(p))
     def _userpage_toggleComments(self):
-        return self.lib.utils.request(path='/site-api/comments/user/' + self.lib.set.username + '/toggle-comments/', method="put", payload=json.dumps(p))
+        return self.lib.utils.request(path='/site-api/comments/user/' + self.lib.set.username + '/toggle-comments/', method="put", payload=_json.dumps(p))
     def _userpage_setBio(self, payload):
         p2 = self.lib.utils.request(path='/site-api/users/all/' + self.lib.set.username).json()
         p = {}
@@ -109,7 +108,7 @@ class ScratchUserSession:
             if i in ['comments_allowed', 'id', 'bio', 'thumbnail_url', 'userId', 'username']:
                 p[i] = p2[i]
         p['bio'] = payload
-        return self.lib.utils.request(path='/site-api/users/all/' + self.lib.set.username, method="put", payload=json.dumps(p))
+        return self.lib.utils.request(path='/site-api/users/all/' + self.lib.set.username, method="put", payload=_json.dumps(p))
     def _users_get_meta(self, usr):
         return self.lib.utils.request(path='/users/' + usr, server=self.API_SERVER).json()
     def _users_follow(self, usr):
@@ -117,42 +116,42 @@ class ScratchUserSession:
     def _users_unfollow(self, usr):
         return self.lib.utils.request(path='/site-api/users/followers/' + usr + '/remove/?usernames=' + self.lib.set.username, method='PUT')
     def _users_comment(self, user, comment):
-        return self.lib.utils.request(path='/site-api/comments/user/' + user + '/add/', method='POST', payload=json.dumps({"content":comment,"parent_id":'',"commentee_id":''}))
+        return self.lib.utils.request(path='/site-api/comments/user/' + user + '/add/', method='POST', payload=_json.dumps({"content":comment,"parent_id":'',"commentee_id":''}))
     def _studios_comment(self, studioid, comment):
-        return self.lib.utils.request(path='/site-api/comments/gallery/' + str(studioid) + '/add/', method='POST', payload=json.dumps({"content":comment,"parent_id":'',"commentee_id":''}))
+        return self.lib.utils.request(path='/site-api/comments/gallery/' + str(studioid) + '/add/', method='POST', payload=_json.dumps({"content":comment,"parent_id":'',"commentee_id":''}))
     def _studios_get_meta(self, studioid):
         return self.lib.utils.request(path='/site-api/galleries/all/' + str(studioid)).json()
     def _studios_invite(self, studioid, user):
         return self.lib.utils.request(path='/site-api/users/curators-in/' + str(studioid) + '/invite_curator/?usernames=' + user, method='PUT')
     def _projects_comment(self, projid, comment):
-        return self.lib.utils.request(path='/site-api/comments/project/' + str(projid) + '/add/', method='POST', payload=json.dumps({"content":comment,"parent_id":'',"commentee_id":''}))
+        return self.lib.utils.request(path='/site-api/comments/project/' + str(projid) + '/add/', method='POST', payload=_json.dumps({"content":comment,"parent_id":'',"commentee_id":''}))
     def _cloud_setvar(self, var, value, projId):
         cloudToken = self.lib.utils.request(method='GET', path='/projects/' + str(projId) + '/cloud-data.js').text.rsplit('\n')[-28].replace(' ', '')[13:49]
-        bc = hashlib.md5()
+        bc = _hashlib.md5()
         bc.update(cloudToken.encode())
-        r = self.lib.utils.request(method='POST', path='/varserver', payload=json.dumps({"token2": bc.hexdigest(), "project_id": str(projId), "value": str(value), "method": "set", "token": cloudToken, "user": self.lib.set.username, "name": '☁ ' + var}))
+        r = self.lib.utils.request(method='POST', path='/varserver', payload=_json.dumps({"token2": bc.hexdigest(), "project_id": str(projId), "value": str(value), "method": "set", "token": cloudToken, "user": self.lib.set.username, "name": '☁ ' + var}))
         return r
     def _cloud_makevar(self, var, value, projId):
         cloudToken = s.lib.utils.request(method='GET', path='/projects/' + str(projId) + '/cloud-data.js').text.rsplit('\n')[-28].replace(' ', '')[13:49]
-        bc = hashlib.md5()
+        bc = _hashlib.md5()
         bc.update(cloudToken.encode())
-        r = self.lib.utils.request(method='POST', path='/varserver', payload=json.dumps({"token2": bc.hexdigest(), "project_id": str(projId), "value": str(value), "method": "create", "token": cloudToken, "user": self.lib.set.username, "name": '☁ ' + var}))
+        r = self.lib.utils.request(method='POST', path='/varserver', payload=_json.dumps({"token2": bc.hexdigest(), "project_id": str(projId), "value": str(value), "method": "create", "token": cloudToken, "user": self.lib.set.username, "name": '☁ ' + var}))
     def _cloud_getvar(self, var, projId):
         dt = self.lib.utils.request(path='/varserver/' + str(projId)).json()['variables']
-        return dt[[x['name']=='☁'+chr(32)+var for x in dt].index(True)]['value']
+        return dt[[x['name'] == '☁ ' + var for x in dt].index(True)]['value']
     def _cloud_getvars(self, projId):
         dt = self.lib.utils.request(path='/varserver/' + str(projId)).json()['variables']
         vardict = {}
         for x in dt:
           xn = x['name']
-          if xn.startswith('☁'+chr(32)):
+          if xn.startswith('☁ '):
             vardict[xn[2:]] = x['value']
           else:
             vardict[xn] = x['value']
         return vardict
     def _cloud_get_cmd(self, var, projId, value):
         cloudToken = s.lib.utils.request(method='GET', path='/projects/' + str(projId) + '/cloud-data.js').text.rsplit('\n')[-28].replace(' ', '')[13:49]
-        bc = hashlib.md5()
+        bc = _hashlib.md5()
         bc.update(cloudToken.encode())
         return {"token2": bc.hexdigest(), "project_id": str(projId), "value": str(value), "method": "create", "token": cloudToken, "user": self.lib.set.username, "name": '☁ ' + var}
     def _tools_update(self):
@@ -164,11 +163,11 @@ class ScratchUserSession:
         return self.lib.utils.request(path='/internalapi/asset/' + md5 + '/get/', server=self.ASSETS_SERVER).content
     def _assets_set(self, md5, content, content_type=None):
         if not content_type:
-            if os.path.splitext(md5)[-1] == '.png':
+            if _os.path.splitext(md5)[-1] == '.png':
                 content_type = 'image/png'
-            elif os.path.splitext(md5)[-1] == '.svg':
+            elif _os.path.splitext(md5)[-1] == '.svg':
                 content_type = 'image/svg+xml'
-            elif os.path.splitext(md5)[-1] == '.wav':
+            elif _os.path.splitext(md5)[-1] == '.wav':
                 content_type = 'audio/wav'
             else:
                 content_type = 'text/plain'
@@ -222,10 +221,10 @@ class ScratchUserSession:
         for x in range(0, retry):
             try:
                 r = request()
-            except requests.exceptions.BaseHTTPError:
+            except _requests.exceptions.BaseHTTPError:
                 continue
             except AttributeError:
-                raise ValueError('Invalid HTTP method')
+                raise ValueError('Unknown HTTP method')
             else:
                 success = True
                 break
@@ -256,11 +255,11 @@ class CloudSession:
         self._projectId = projectId
         self._cloudId = self._scratch.lib.set.sessions_id
         self._token = self._scratch.lib.utils.request(method='GET', path='/projects/' + str(self._projectId) + '/cloud-data.js').text.rsplit('\n')[-28].replace(' ', '')[13:49]
-        md5 = hashlib.md5()
+        md5 = _hashlib.md5()
         md5.update(self._cloudId.encode())
         self._rollover = []
         self._md5token = md5.hexdigest()
-        self._connection = socket.create_connection((ScratchUserSession.CLOUD, ScratchUserSession.CLOUD_PORT))
+        self._connection = _socket.create_connection((self._scratch.CLOUD, self._scratch.CLOUD_PORT))
         self._send('handshake', {})
     def _send(self, method, options):
         obj = {
@@ -271,9 +270,9 @@ class CloudSession:
             'method': method
             }
         obj.update(options)
-        ob = (json.dumps(obj) + '\r\n').encode('utf-8')
+        ob = (_json.dumps(obj) + '\r\n').encode('utf-8')
         self._connection.send(ob)
-        md5 = hashlib.md5()
+        md5 = _hashlib.md5()
         md5.update(self._md5token.encode())
         self._md5token = md5.hexdigest()
 
@@ -299,43 +298,45 @@ class CloudSession:
 
     def get_updates(self, timeout, maxCount=10):
         count = 0
-        updates = []  # keep a dict of all name+value pairs received
-        self._connection.settimeout(timeout)  # recv will wait for given time
-        while count<maxCount:
-          data = ''.encode('utf-8')  # start off blank
-          while True:
-            try:  # keep concatenating receives (until ended with \n)
-              data = data + self._connection.recv(4096)  # raises exception if no data by timeout
-              if data[-1]==10:  break  # get out if we found terminating \n
-              self._connection.settimeout(0.1)  # allow time for more data
-            except:  # or until recv throws exception 'cos there's no data
-              break
-          if not data:  break  # get out if nothing received
-          self._connection.settimeout(0.01)  # allow quick check for more data
-          if data[0]==123:  # starts with left brace, so don't prepend rollover
-            self._rollover = []  # ...though will this rollover thing ever really be necessary?
-          data = self._rollover + data.decode('utf-8').split('\n')  # split up multiple updates
-          if data[-1]:  # last line was incomplete, so roll it over...
-            print('Warning: last line of data incomplete?! '+data[-1].encode('utf-8'))  # FYI for now...
-            self._rollover = [data[-1]]  # put it into rollover for next receive
-          else:
-            self._rollover = []
-          data = data[:-1]  # never need last line - it's either blank or it's rolled over
-          for line in data:
-            if line:  # ignore blank lines (shouldn't get any?)
-              try:
-                line = json.loads(line)  # try to parse this entry
-                name = line['name']  # try to extract var name
-                value = str(line['value'])  # should be string anyway?
-                if name.startswith('☁ '):
-                  updates.append((name[2:], value))  # avoid leading cloud+space chars
-                else:
-                  updates.append((name, value))  # probably never happens?
-                count = count + 1  # count how many updates we've successfully parsed
-              except:  # just ignore data if we can't get 'name'+'value' from it
-                continue  # get next entry, or go back to receive more
-        self._connection.settimeout(None)  # reset timeout to default
+        updates = []
+        self._connection.settimeout(timeout)
+        while count < maxCount:
+            data = ''.encode('utf-8')
+            while True:
+                try:
+                    data = data + self._connection.recv(4096)
+                    if data[-1] == 10:
+                        break
+                    self._connection.settimeout(0.1)
+                except:
+                    break
+            if not data:
+                break
+            self._connection.settimeout(0.01)
+            if data[0] == 123:
+                self._rollover = []
+            data = self._rollover + data.decode('utf-8').split('\n')
+            if data[-1]:
+                self._rollover = [data[-1]]
+            else:
+                self._rollover = []
+            data = data[:-1]
+            for line in data:
+                if line:
+                    try:
+                        line = _json.loads(line)
+                        name = line['name']
+                        value = str(line['value'])
+                        if name.startswith('☁ '):
+                            updates.append((name[2:], value))
+                        else:
+                            updates.append((name, value))
+                        count = count + 1
+                    except:
+                        continue
+        self._connection.settimeout(None)
         return updates
+
     def get_new_values(self, timeout, max_values=10):
         nv = {}
         for x in self.get_updates(timeout, max_values):

@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-The MIT License (MIT)
 Copyright (c) 2015 Dylan Beswick
+The MIT License (MIT)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files
 (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge,
@@ -20,7 +20,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 # ScratchAPI 1.0
-# Written by Dylan5797 [https://dylan4.com]
+# Written by Dylan5797 [http://dylan4.com]
 #  _____        _             _____ ______ ___ ______
 # |  __ \      | |           | ____|____  / _ \____  |
 # | |  | |_   _| | __ _ _ __ | |__     / / (_) |  / /
@@ -37,15 +37,16 @@ import hashlib as _hashlib
 import os as _os
 
 class ScratchUserSession:
-    SERVER = 'scratch.mit.edu'
-    API_SERVER = 'api.scratch.mit.edu'
-    PROJECTS_SERVER = 'projects.scratch.mit.edu'
-    ASSETS_SERVER = 'assets.scratch.mit.edu'
-    CDN_SERVER = 'cdn.scratch.mit.edu'
-    CLOUD = 'cloud.scratch.mit.edu'
-    CLOUD_PORT = 531
     def __init__(self, username, password, remember_password=False):
-        self.lib.utils.request = self._rcallarg
+        self.SERVER = 'scratch.mit.edu'
+        self.API_SERVER = 'api.scratch.mit.edu'
+        self.PROJECTS_SERVER = 'projects.scratch.mit.edu'
+        self.ASSETS_SERVER = 'assets.scratch.mit.edu'
+        self.CDN_SERVER = 'cdn.scratch.mit.edu'
+        self.CLOUD = 'cloud.scratch.mit.edu'
+        self.CLOUD_PORT = 531
+
+        self.lib.utils.request = self._request
         self.lib.set.username = username
         self.lib.set.password = None
         self.lib.set.password_remembered = remember_password
@@ -85,6 +86,8 @@ class ScratchUserSession:
         self.cloud.create_var = self._cloud_makevar
         self.cloud.get_var = self._cloud_getvar
         self.cloud.get_vars = self._cloud_getvars
+        self.cloud.rename_var = self._cloud_rename_var
+        self.cloud.delete_var = self._cloud_delete_var
 
         self.HEADERS = {'X-Requested-With': 'XMLHttpRequest', 'Referer':'https://scratch.mit.edu/'}
         self.lib.utils.request(path='/csrf_token/', update=False)
@@ -149,34 +152,38 @@ class ScratchUserSession:
     def _projects_comment(self, projid, comment):
         return self.lib.utils.request(path='/site-api/comments/project/' + str(projid) + '/add/', method='POST', payload=_json.dumps({"content":comment,"parent_id":'',"commentee_id":''}))
     def _cloud_setvar(self, var, value, projId):
-        cloudToken = self.lib.utils.request(method='GET', path='/projects/' + str(projId) + '/cloud-data.js').text.rsplit('\n')[-28].replace(' ', '')[13:49]
-        bc = _hashlib.md5()
-        bc.update(cloudToken.encode())
-        r = self.lib.utils.request(method='POST', path='/varserver', payload=_json.dumps({"token2": bc.hexdigest(), "project_id": str(projId), "value": str(value), "method": "set", "token": cloudToken, "user": self.lib.set.username, "name": '☁ ' + var}))
-        return r
+        return self._cloud_send('set', projId, {'name': '☁ ' + var, 'value': value})
     def _cloud_makevar(self, var, value, projId):
-        cloudToken = s.lib.utils.request(method='GET', path='/projects/' + str(projId) + '/cloud-data.js').text.rsplit('\n')[-28].replace(' ', '')[13:49]
-        bc = _hashlib.md5()
-        bc.update(cloudToken.encode())
-        r = self.lib.utils.request(method='POST', path='/varserver', payload=_json.dumps({"token2": bc.hexdigest(), "project_id": str(projId), "value": str(value), "method": "create", "token": cloudToken, "user": self.lib.set.username, "name": '☁ ' + var}))
+        return self._cloud_send('create', projId, {'name': '☁ ' + var})
+    def _cloud_rename_var(self, oldname, newname, projId):
+        self._cloud_send('rename', projId, {'name': '☁ ' + oldname, 'new_name': '☁ ' + newname})
+    def _cloud_delete_var(self, name, projId):
+        self._cloud_send('delete', projId, {'name':'☁ ' + name})
     def _cloud_getvar(self, var, projId):
-        dt = self.lib.utils.request(path='/varserver/' + str(projId)).json()['variables']
-        return dt[[x['name'] == '☁ ' + var for x in dt].index(True)]['value']
+        return self._cloud_getvars(projId)['var']
     def _cloud_getvars(self, projId):
         dt = self.lib.utils.request(path='/varserver/' + str(projId)).json()['variables']
         vardict = {}
         for x in dt:
-          xn = x['name']
-          if xn.startswith('☁ '):
-            vardict[xn[2:]] = x['value']
-          else:
-            vardict[xn] = x['value']
+            xn = x['name']
+            if xn.startswith('☁ '):
+                vardict[xn[2:]] = x['value']
+            else:
+                vardict[xn] = x['value']
         return vardict
-    def _cloud_get_cmd(self, var, projId, value):
-        cloudToken = s.lib.utils.request(method='GET', path='/projects/' + str(projId) + '/cloud-data.js').text.rsplit('\n')[-28].replace(' ', '')[13:49]
+    def _cloud_send(self, method, projId, options):
+        cloudToken = self.lib.utils.request(method='GET', path='/projects/' + str(projId) + '/cloud-data.js').text.rsplit('\n')[-28].replace(' ', '')[13:49]
         bc = _hashlib.md5()
         bc.update(cloudToken.encode())
-        return {"token2": bc.hexdigest(), "project_id": str(projId), "value": str(value), "method": "create", "token": cloudToken, "user": self.lib.set.username, "name": '☁ ' + var}
+        data = {
+            "token": cloudToken,
+            "token2": bc.hexdigest(),
+            "project_id": str(projId),
+            "method": str(method),
+            "user": self.lib.set.username,
+        }
+        data.update(options)
+        return self.lib.utils.request(method='POST', path='/varserver', payload=_json.dumps(data))
     def _tools_update(self):
         self.lib.set.csrf_token = self.lib.utils.session.cookies.get('scratchcsrftoken')
         self.lib.set.sessions_id = self.lib.utils.session.cookies.get('scratchsessionsid')
@@ -205,7 +212,7 @@ class ScratchUserSession:
         return self.lib.utils.request(path='/proxy/users/' + user + '/activity/count', server=self.API_SERVER).json()['msg_count']
     def _get_message_html(self):
         return self.lib.utils.request(path='/messages/')
-    def _rcallarg(self, **options):
+    def _request(self, **options):
         headers = {}
         for x in self.HEADERS:
             headers[x] = self.HEADERS[x]
@@ -294,10 +301,14 @@ class CloudSession:
             'user': self._user,
             'project_id': str(self._projectId),
             'method': method
-            }
+        }
         obj.update(options)
         ob = (_json.dumps(obj) + '\r\n').encode('utf-8')
-        self._connection.send(ob)
+        try:
+            self._connection.send(ob)
+        except BrokenPipeError:
+            self.__init__(self._projectId, self._scratch)
+            self._connection.send(ob)
         md5 = _hashlib.md5()
         md5.update(self._md5token.encode())
         self._md5token = md5.hexdigest()
@@ -322,11 +333,11 @@ class CloudSession:
     def get_vars(self):
         return self._scratch.cloud.get_vars(self._projectId)
 
-    def get_updates(self, timeout, maxCount=10):
+    def get_updates(self, timeout, max_count=10):
         count = 0
         updates = []
         self._connection.settimeout(timeout)
-        while count < maxCount:
+        while count < max_count:
             data = ''.encode('utf-8')
             while True:
                 try:

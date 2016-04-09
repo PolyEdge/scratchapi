@@ -1,7 +1,7 @@
-# ScratchAPI #
+# scratchapi #
 [Scratch](https://scratch.mit.edu) API Interface
 
-ScratchAPI is a scratch API interface written in [Python](https://www.python.org/).
+scratchapi is a scratch API interface written in [Python](https://www.python.org/).
 
 To get started, install it with `setup.py`
 

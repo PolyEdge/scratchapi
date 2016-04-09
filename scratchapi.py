@@ -35,6 +35,7 @@ import json as _json
 import socket as _socket
 import hashlib as _hashlib
 import os as _os
+import time as _time
 
 class ScratchUserSession:
     def __init__(self, username, password, remember_password=False):
@@ -290,11 +291,19 @@ class CloudSession:
         self._token = self._scratch.lib.utils.request(method='GET', path='/projects/' + str(self._projectId) + '/cloud-data.js').text.rsplit('\n')[-28].replace(' ', '')[13:49]
         md5 = _hashlib.md5()
         md5.update(self._cloudId.encode())
+        self._reset_last = _time.time()
+        self._reset = True
+        self._reset_interval = 300
         self._rollover = []
         self._md5token = md5.hexdigest()
         self._connection = _socket.create_connection((self._scratch.CLOUD, self._scratch.CLOUD_PORT))
         self._send('handshake', {})
     def _send(self, method, options):
+        if self._reset:
+            if _time.time() > (self._reset_last + self._reset_interval):
+                reset_interval = self._reset_interval
+                self.__init__(self._projectId, self._scratch)
+                self._reset_interval = reset_interval
         obj = {
             'token': self._token,
             'token2': self._md5token,

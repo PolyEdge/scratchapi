@@ -1,9 +1,8 @@
 # scratchapi #
-[Scratch](https://scratch.mit.edu) API Interface
+scratchapi is a web API interface for [Scratch](https://scratch.mit.edu), written in [Python](https://www.python.org/).
 
-scratchapi is a scratch API interface written in [Python](https://www.python.org/).
-
-To get started, install it with `setup.py`
+To get started, install it via pip by running `pip install scratchapi`   
+Alternatively, you can download this repository and run `python setup.py install` 
 
 ## Getting Started ##
 To use the api, you must log in to your scratch account:
@@ -15,7 +14,7 @@ scratch = scratchapi.ScratchUserSession('Username', 'password')
 ### After login ###
 Now, you can verify your session to see if you logged in correctly:
 ```python
-scratch.tools.verify_session()
+scratch.tools.verify_session() # Should return True
 ```
 There are a lot of things you can you when you're logged in!
 

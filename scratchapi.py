@@ -36,6 +36,7 @@ import socket as _socket
 import hashlib as _hashlib
 import os as _os
 import time as _time
+import webbrowser as _web
 
 class ScratchUserSession:
     def __init__(self, username, password, remember_password=False):
@@ -161,7 +162,7 @@ class ScratchUserSession:
     def _cloud_delete_var(self, name, projId):
         self._cloud_send('delete', projId, {'name':'☁ ' + name})
     def _cloud_getvar(self, var, projId):
-        return self._cloud_getvars(projId)['var']
+        return self._cloud_getvars(projId)[var]
     def _cloud_getvars(self, projId):
         dt = self.lib.utils.request(path='/varserver/' + str(projId)).json()['variables']
         vardict = {}
@@ -337,7 +338,7 @@ class CloudSession:
         self._send('delete', {'name':'☁ ' + name})
 
     def get_var(self, name):
-        return self._scratch.cloud.get_var(name,self._projectId)
+        return self._scratch.cloud.get_var(name, self._projectId)
 
     def get_vars(self):
         return self._scratch.cloud.get_vars(self._projectId)
@@ -388,3 +389,10 @@ class CloudSession:
         for x in self.get_updates(timeout, max_values):
             nv[x[0]] = x[1]
         return nv
+
+class _docs_view():
+    def __call__(self):
+        _web.open("https://github.com/Dylan5797/scratchapi/wiki/")
+    def __repr__(self):
+        return "See https://github.com/Dylan5797/scratchapi/wiki/ or call scratchapi.__doc__()"
+__doc__ = _docs_view()

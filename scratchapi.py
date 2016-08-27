@@ -246,6 +246,7 @@ class ScratchUserSession:
         if 'retry' in options:
             retry = options['retry']
         server = 'https://' + server
+        headers = {x:str(headers[x]) for x in headers}
         def request():
             if 'payload' in options:
                 return getattr(self.lib.utils.session, method.lower())(server + port + options['path'], data=options['payload'], headers=headers)
@@ -373,7 +374,6 @@ class CloudSession:
                     try:
                         line = _json.loads(line)
                         name = line['name']
-                        value = str(line['value'])
                         if name.startswith('☁ '):
                             updates.append((name[2:], value))
                         else:

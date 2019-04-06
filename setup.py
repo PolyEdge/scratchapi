@@ -51,6 +51,6 @@ setup(
 
     py_modules=["scratchapi"],
 
-    install_requires=['requests'],
+    install_requires=['requests', 'websockets'],
 
 )

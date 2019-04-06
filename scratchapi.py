@@ -374,6 +374,7 @@ class CloudSession:
                     try:
                         line = _json.loads(line)
                         name = line['name']
+                        value = line['value']
                         if name.startswith('☁ '):
                             updates.append((name[2:], value))
                         else:

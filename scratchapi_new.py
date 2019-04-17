@@ -30,9 +30,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #          __/ |
 #         |___/
 
-import collections as _collections
-import traceback
-
+import traceback as _traceback
 import requests as _requests
 import json as _json
 import hashlib as _hashlib
@@ -62,7 +60,7 @@ class _ScratchUtils:
         for x in path:
             try:
                 item = item[x]
-            except:
+            except (KeyError, IndexError):
                 return default
         return item
 
@@ -88,7 +86,7 @@ class ScratchSession:
         self.http_session = _requests.session()
 
         self._save(username, password)
-        if username != None and password != None and auto_login:
+        if username is not None and password is not None and auto_login:
             self.login(username, password)
 
     def _save(self, username, password):
@@ -208,7 +206,6 @@ class ScratchSession:
         request_path = None
         request_authenticated = False
         request_headers = {}
-        request_cookies = self.http_session.cookies
         request_retries = 3
         request_body = None
         request_response = None
@@ -233,11 +230,10 @@ class ScratchSession:
                     request_path = a1_split[1]
                 args = args[2:]
 
-            if ((not "field" in kwargs) or kwargs["field"]):
+            if (not "field" in kwargs) or kwargs["field"]:
                 path_build = ""
                 index = 0
                 field_arg = None
-                fields = _collections.OrderedDict()
                 for x in _re.split("(:[a-zA-Z0-9]+)", request_path):
                     if x.startswith(":"):
                         if field_arg is None:
@@ -245,6 +241,7 @@ class ScratchSession:
                             field_arg = args[0] if type(args[0]) in [tuple, list, dict] else (args[0], )
                             args = args[1:]
                         if type(field_arg) == dict:
+                            # noinspection PyTypeChecker
                             path_build += field_arg[x[1:]]
                         else:
                             path_build += field_arg[index]
@@ -255,7 +252,7 @@ class ScratchSession:
 
         if len(args) != 0:
             request_body = args[0]
-            args = args[1:]
+            #args = args[1:]
 
         if 'method' in kwargs:
             request_method = kwargs['method'].upper()
@@ -295,9 +292,9 @@ class ScratchSession:
         if request_body is not None:
             request_headers["content-length"] = len(request_body)
         request_headers = {x:(str(request_headers[x]) if not isinstance(request_headers[x], (str, bytes)) else request_headers[x]) for x in request_headers}
-        request_url = request_protocol + "://" + request_server + (":" + str(request_port) if request_port != None else "") + request_path
+        request_url = request_protocol + "://" + request_server + (":" + str(request_port) if request_port is not None else "") + request_path
         request_unprepared = _requests.Request(method=request_method.upper(), url=request_url, headers=request_headers, cookies=self.http_session.cookies)
-        if (request_body is not None):
+        if request_body is not None:
             request_unprepared.data = request_body
         request_prepared = request_unprepared.prepare()
 
@@ -319,8 +316,15 @@ class _ScratchAuthenticatable:
     """"Represents an online scratch entity that may contain additional features when the client is authenticated.
     An instance of ScratchSession may be stored in an instance of ScratchAuthenticatable in order for it to function without requiring a session to be passed every time"""
 
-    def _put_auth(self, session): #used to set the auth session by a parent
-        self._session = session
+    def _chain(self, instance):
+        "used by a parent authenticatable to inherit this authenticatables session from its session"
+        assert instance != self
+        self._scratch_session = instance._session()
+        return self
+
+    def _put_auth(self, session):
+        "used by a parent authenticatable to set the session of this authenticatable"
+        self._scratch_session = session
         return self
 
     def _auth(self, session: ScratchSession=None) -> ScratchSession():
@@ -330,10 +334,12 @@ class _ScratchAuthenticatable:
     def _session(self, session: ScratchSession=None, auth=False) -> ScratchSession():
         """returns the session the authenticatable is using unless another session is specified in the arguments as an override. will make a new session if needed.
         if auth is set to true and the session is not authenticated, will raise an error"""
+        if getattr(self, "_scratch_session", None) is None:
+            self._scratch_session = None
         if session is None:
-            if self._session == None:
-                self._session = ScratchSession()
-            session = self._session
+            if self._scratch_session is None:
+                self._scratch_session = ScratchSession()
+            session = self._scratch_session
         if auth:
             _assert(session.authenticated(), Unauthenticated())
         session.csrf()
@@ -341,7 +347,7 @@ class _ScratchAuthenticatable:
 
     def authenticate(self, session: ScratchSession):
         "authenticates the object with the given session."
-        self._session = session
+        self._scratch_session = session
 
 class ScratchAPI:
     "NOT UPDATED YET! A wrapper"
@@ -425,49 +431,6 @@ class ScratchAPI:
     def _projects_comment(self, project_id, comment):
         return self.session.http(path='/site-api/comments/project/' + str(project_id) + '/add/', method='POST', payload=_json.dumps({"content":comment,"parent_id":'',"commentee_id":''}))
 
-    def _cloud_setvar(self, var, value, project_id):
-        return self._cloud_send('set', project_id, {'name': '☁ ' + var, 'value': value})
-
-    def _cloud_makevar(self, var, value, project_id):
-        return self._cloud_send('create', project_id, {'name': '☁ ' + var})
-
-    def _cloud_rename_var(self, oldname, newname, project_id):
-        self._cloud_send('rename', project_id, {'name': '☁ ' + oldname, 'new_name': '☁ ' + newname})
-
-    def _cloud_delete_var(self, name, project_id):
-        self._cloud_send('delete', project_id, {'name':'☁ ' + name})
-
-    def _cloud_getvar(self, var, project_id):
-        return self._cloud_getvars(project_id)[var]
-
-    def _cloud_getvars(self, project_id):
-        dt = self.session.http(path='/varserver/' + str(project_id)).json()['variables']
-        vardict = {}
-        for x in dt:
-            xn = x['name']
-            if xn.startswith('☁ '):
-                vardict[xn[2:]] = x['value']
-            else:
-                vardict[xn] = x['value']
-        return vardict
-
-    def _cloud_send(self, method, project_id, options):
-        cloudToken = self.session.http(method='GET', path='/projects/' + str(project_id) + '/cloud-data.js').text.rsplit('\n')[-28].replace(' ', '')[13:49]
-        bc = _hashlib.md5()
-        bc.update(cloudToken.encode())
-        data = {
-            "token": cloudToken,
-            "token2": bc.hexdigest(),
-            "project_id": str(project_id),
-            "method": str(method),
-            "user": self.lib.set.username,
-        }
-        data.update(options)
-        return self.session.http(method='POST', path='/varserver', payload=_json.dumps(data))
-
-        #self.HEADERS['Cookie'] = 'scratchcsrftoken=' + self.lib.utils.session.cookies.get_dict()['scratchcsrftoken'] + '; scratchsessionsid=' + self.lib.utils.session.cookies.get('scratchsessionsid') + '; scratchlanguage=en'
-
-
     def _assets_get(self, md5):
         return self.session.http(path='/internalapi/asset/' + md5 + '/get/', server=self.ASSETS_SERVER).content
     def _assets_set(self, md5, content, content_type=None):
@@ -509,42 +472,44 @@ class ScratchProject:
         self.assets = {}
         self.reader = None
         self.file = None
-        if (load != None):
-            ScratchProject.load(load, reader=reader)
+        if load is not None:
+            ScratchProject.load(load, reader)
 
     def load(self, stream, reader=None):
         project_json, stream = self._stream(stream)
-        if reader == None:
+        if reader is None:
             reader = _ScratchProjectReader.get_reader(project_json)
-        assert reader != None, "couldn't read this file. no reader accepted the JSON content."
+        assert reader is not None, "couldn't read this file. no reader accepted the JSON content."
         self.json = project_json
         self.reader = reader
         self.file = stream
 
+    def _get_zipfile(self, stream):
+        if type(stream) == bytes:
+            stream = _io.BytesIO(stream)
+        return _zipfile.ZipFile(stream)
+
     def _stream(self, stream):
         try:
-            scratch_file = ScratchProject._get_zipfile(stream)
+            scratch_file = self._get_zipfile(stream)
         except:
             raise ValueError("scratch file is invalid. NOTE: scratch 1.4 is not supported")
         json_filename = ([x.filename for x in scratch_file.filelist if x.filename == 'project.json'] + [x.filename for x in scratch_file.filelist if x.filename.endswith('project.json')]) #have seen prefixed project.json files before that scratch still opens ...lol
         json_file = scratch_file.open(json_filename)
         project_json = _json.loads(json_file.read().decode('utf-8'))
         json_file.close()
-        return (project_json, scratch_file)
+        return project_json, scratch_file
 
     def _assets(self, stream):
         pass # TODO
 
-    def _get_zipfile(*args):
-        stream = args[-1]
-        if type(stream) == bytes:
-            stream = _io.BytesIO(stream)
-        return _zipfile.ZipFile(stream)
 
     def get_asset(self, name):
+        "gets an asset with the specified name, returns None if not found."
+        if not (name in self.assets):
+            self.read_asset(name)
         if name in self.assets:
             return self.assets[name]
-        self.read_asset()
         return None
 
     def put_asset(self, data: bytes, filetype):
@@ -554,6 +519,7 @@ class ScratchProject:
         return md5
 
     def del_asset(self, filename):
+        "removes an asset with the specified name"
         while filename in self.assets:
             del self.assets[filename]
 
@@ -579,14 +545,14 @@ class _ScratchProjectReader(_ScratchUtils):
 
     def includes(self, json):
         "returns true if the passed json is implemented by this reader"
-        return False
-
-    def from_sb2(self, zipfile):
-        "converts a sb2 to json and assets"
         raise NotImplemented()
 
-    def to_sb2(self, json, assets):
-        "converts json and assets to a sb2 file"
+    def from_binary(self, zipfile):
+        "converts a scratch binary file to json and assets"
+        raise NotImplemented()
+
+    def to_binary(self, json, assets):
+        "converts json and assets to a scratch binary file"
         raise NotImplemented()
 
     def get_asset_list(self, json):
@@ -595,11 +561,25 @@ class _ScratchProjectReader(_ScratchUtils):
 
 
 class _ScratchReader20(_ScratchProjectReader):
-    def to_sb2(self, json, assets):
+    def from_binary(self, zipfile):
         raise NotImplemented("not currently implemented.")
 
-    def from_sb2(self, zipfile):
-        pass
+    def to_binary(self, json, assets):
+        raise NotImplemented("not currently implemented.")
+
+    def get_asset_list(self, json):
+        raise NotImplemented("not currently implemented.")
+
+
+class _ScratchReader30(_ScratchProjectReader):
+    def from_binary(self, zipfile):
+        raise NotImplemented("not currently implemented.")
+
+    def to_binary(self, json, assets):
+        raise NotImplemented("not currently implemented.")
+
+    def get_asset_list(self, json):
+        raise NotImplemented("not currently implemented.")
 
 
 # ONLINE PROJECTS
@@ -658,15 +638,15 @@ class OnlineScratchProject(_ScratchAuthenticatable, _ScratchUtils):
 
     def load(self, session=None):
         "downloads metadata from the scratch website"
-        assert self.created(), "the project must be created to be loaded"
+        assert self.created(), "the project must exist on MIT servers to be loaded"
         session = self._session(session)
         data = session.http(session.API_SERVER, "/projects/:project", self.project_id).json()
+        self._put_data(data)
 
     def get_project(self, session=None):
-
         assert self.created()
-        session = self._session(session)
         project = ScratchProjectOnlineProxy(self.project_id)
+        project._put_auth(self._session(session))
 
 
 # CLOUD SESSIONS
@@ -679,13 +659,13 @@ class _CloudSessionWatchdog:
         self.read_timeout = 45 # after this many seconds with no reads, the connection will be reestablished
 
     def reconnect_needed(self):
-        return (_time.time() > self.read_last + self.read_timeout)
+        return _time.time() > self.read_last + self.read_timeout
 
     def reset_read(self):
         self.read_last = _time.time()
 
     async def handle_connection(self):
-        if (not self.enabled) or not (self.instance._connected):
+        if (not self.enabled) or not self.instance._connected:
             return
         if (not (self.instance.socket.state in [_websockets_client.OPEN, _websockets_client.CONNECTING])) or self.reconnect_needed():
             self.instance._debug("watchdog: reconnect -> " + str(self.instance.socket.state))
@@ -732,13 +712,13 @@ class AIOCloudSession: # not sure exactly the usage cases of this thing because 
 
     def _check_connected(self):
         assert self._connected, "The client is not connected"
-        assert self.socket != None, "No connection was established"
+        assert self.socket is not None, "No connection was established"
 
     async def connect(self, project_id=None):
         """connects to the cloud data server. specifying a project_id will overwrite any id given when the class is constructed.
         one must be given at class contruction or passed to connect() or an error will be raised"""
         self.project_id = project_id or self.project_id
-        assert self.project_id != None
+        assert self.project_id is not None
         assert self.session.authenticated()
         _websockets_client.USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.86 Safari/537.36" #look like a normal client if this works the way i expect it does :sunglasses:
         self._debug("connect: establish")
@@ -793,21 +773,20 @@ class AIOCloudSession: # not sure exactly the usage cases of this thing because 
         count = -1
         while count < max_count:
             count += 1
-            data = None
             try:
                 await _asyncio.sleep(0)
                 data = await _asyncio.wait_for(self.socket.recv(), timeout)
             except _asyncio.TimeoutError:
                 break
             except _websockets.ConnectionClosed:
-                await AIOCloudSession.reconnect()
+                await AIOCloudSession.reconnect(self)
                 continue
             if (data is None) or (data == b""):
                 break
             try:
                 packet = _json.loads(data)
-            except:
-                traceback.print_exc()
+            except _json.JSONDecodeError:
+                _traceback.print_exc()
                 continue
             updates.append(packet)
             self._client_inbound.append(packet)
@@ -823,7 +802,6 @@ class AIOCloudSession: # not sure exactly the usage cases of this thing because 
         self._debug("write: write")
         for packet in self._client_outbound.copy():
             del self._client_outbound[0]
-            ob = (_json.dumps(packet) + '\n').encode('utf-8')
             try:
                 await AIOCloudSession._write_packet(self, packet)
             except _websockets.ConnectionClosed:
@@ -885,6 +863,8 @@ class AIOCloudSession: # not sure exactly the usage cases of this thing because 
         await AIOCloudSession._read(self, timeout=timeout)
         return self.variables.variables
 
+
+# noinspection PyArgumentList
 class CloudSession(AIOCloudSession): # not sure of standard conventions for running asyncs like this properly.
                                      # async isnt even supposed to be used like this but it's a documented in a way that
                                      # that beginners struggle to understand, and syncronous programming is the best start
@@ -1006,7 +986,7 @@ class _CloudVariablesList(_AIOCloudVariablesList):
         args = args if type(args) == tuple else (args, )
         return self.set(*args[0:1], value, *args[1:])
 
-class __docs_view():
+class __docs_view:
     "Call __doc__() to view the scratchapi docs online"
     def __call__(self):
         _web.open("https://github.com/PolyEdge/scratchapi/wiki/")

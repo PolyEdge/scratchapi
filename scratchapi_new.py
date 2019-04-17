@@ -42,16 +42,32 @@ import time as _time
 import webbrowser as _web
 import asyncio as _asyncio
 import websockets as _websockets
-from websockets import client as _websockets_client
+import websockets.client as _websockets_client
 import warnings as _warnings
+import io as _io
+import zipfile as _zipfile
+
+# EXCEPTIONS
 
 class ScratchAPIExceptionBase(BaseException): "Base exception for the scratchapi module"
 class Unauthenticated(ScratchAPIExceptionBase): "Raised when an authenticated action is attempted without logging in"
 class InvalidCSRF(ScratchAPIExceptionBase): "Raised when the CSRF token is invalid or not fetched"
 
-class _ScratchAuthenticatable:
-    "Represents a scratch object that contains additional features when authenticated"
+# UTIL EXTENDS
 
+class _ScratchUtils:
+    def _tree(self, item, *args):
+        path = args[:-1]
+        default = args[-1]
+        for x in path:
+            try:
+                item = item[x]
+            except:
+                return default
+        return item
+
+
+# CLIENT SESSION
 
 class ScratchSession:
     def __init__(self, username=None, password=None, auto_login=True, retain_password=False):
@@ -122,7 +138,7 @@ class ScratchSession:
 
     def csrf(self):
         "Fetches a new CSRF token if needed"
-        if self.get_csrf() == None:
+        if self.get_csrf() is None:
             self.new_csrf()
 
     def login(self, *args):
@@ -224,7 +240,7 @@ class ScratchSession:
                 fields = _collections.OrderedDict()
                 for x in _re.split("(:[a-zA-Z0-9]+)", request_path):
                     if x.startswith(":"):
-                        if field_arg == None:
+                        if field_arg is None:
                             assert len(args) > 0, "when supplying url fields using /:field/, supply a tuple, list or dictionary after the path or include (field=False) to disable field checking and use the raw URL."
                             field_arg = args[0] if type(args[0]) in [tuple, list, dict] else (args[0], )
                             args = args[1:]
@@ -297,6 +313,35 @@ class ScratchSession:
             request_response.raise_for_status()
         return request_response
 
+# AUTH HELPER
+
+class _ScratchAuthenticatable:
+    """"Represents an online scratch entity that may contain additional features when the client is authenticated.
+    An instance of ScratchSession may be stored in an instance of ScratchAuthenticatable in order for it to function without requiring a session to be passed every time"""
+
+    def _put_auth(self, session): #used to set the auth session by a parent
+        self._session = session
+        return self
+
+    def _auth(self, session: ScratchSession=None) -> ScratchSession():
+        "alias of _session(session, auth=True)"
+        return self._session(session=session, auth=True)
+
+    def _session(self, session: ScratchSession=None, auth=False) -> ScratchSession():
+        """returns the session the authenticatable is using unless another session is specified in the arguments as an override. will make a new session if needed.
+        if auth is set to true and the session is not authenticated, will raise an error"""
+        if session is None:
+            if self._session == None:
+                self._session = ScratchSession()
+            session = self._session
+        if auth:
+            _assert(session.authenticated(), Unauthenticated())
+        session.csrf()
+        return session
+
+    def authenticate(self, session: ScratchSession):
+        "authenticates the object with the given session."
+        self._session = session
 
 class ScratchAPI:
     "NOT UPDATED YET! A wrapper"
@@ -454,6 +499,178 @@ class ScratchUserSession:
         This alias may be removed in the future, it is suggested that you change over to the new class names.""")
         super().__init__(*args, **kwargs)
 
+# OFFLINE PROJECTS
+
+class ScratchProject:
+    def __init__(self, load=None, reader=None):
+        """represents an offline scratch project. In order to upload a scratch project, you must create an online project first
+        (using ScratchAPI.new_project() or creating a new OnlineScratchProject)"""
+        self.json = None
+        self.assets = {}
+        self.reader = None
+        self.file = None
+        if (load != None):
+            ScratchProject.load(load, reader=reader)
+
+    def load(self, stream, reader=None):
+        project_json, stream = self._stream(stream)
+        if reader == None:
+            reader = _ScratchProjectReader.get_reader(project_json)
+        assert reader != None, "couldn't read this file. no reader accepted the JSON content."
+        self.json = project_json
+        self.reader = reader
+        self.file = stream
+
+    def _stream(self, stream):
+        try:
+            scratch_file = ScratchProject._get_zipfile(stream)
+        except:
+            raise ValueError("scratch file is invalid. NOTE: scratch 1.4 is not supported")
+        json_filename = ([x.filename for x in scratch_file.filelist if x.filename == 'project.json'] + [x.filename for x in scratch_file.filelist if x.filename.endswith('project.json')]) #have seen prefixed project.json files before that scratch still opens ...lol
+        json_file = scratch_file.open(json_filename)
+        project_json = _json.loads(json_file.read().decode('utf-8'))
+        json_file.close()
+        return (project_json, scratch_file)
+
+    def _assets(self, stream):
+        pass # TODO
+
+    def _get_zipfile(*args):
+        stream = args[-1]
+        if type(stream) == bytes:
+            stream = _io.BytesIO(stream)
+        return _zipfile.ZipFile(stream)
+
+    def get_asset(self, name):
+        if name in self.assets:
+            return self.assets[name]
+        self.read_asset()
+        return None
+
+    def put_asset(self, data: bytes, filetype):
+        "adds an asset to the project"
+        md5 = _hashlib.md5(data).hexdigest()
+        self.assets[md5 + "." + filetype] = data
+        return md5
+
+    def del_asset(self, filename):
+        while filename in self.assets:
+            del self.assets[filename]
+
+    #Override methods
+
+    def read_asset(self, name):
+        "will return an asset with the name specified"
+        if name in self.assets:
+            return self.assets[name]
+        return None
+
+class _ScratchProjectReader(_ScratchUtils):
+    def __init__(self, parent):
+        self.parent = parent
+
+    def get_reader(*args):
+        parent = args[-1]
+        for reader in _ScratchProjectReader.__subclasses__():
+            instance = reader(parent)
+            if instance.includes(args[-1]):
+                return instance
+        return None
+
+    def includes(self, json):
+        "returns true if the passed json is implemented by this reader"
+        return False
+
+    def from_sb2(self, zipfile):
+        "converts a sb2 to json and assets"
+        raise NotImplemented()
+
+    def to_sb2(self, json, assets):
+        "converts json and assets to a sb2 file"
+        raise NotImplemented()
+
+    def get_asset_list(self, json):
+        "creates an asset list from the passed json object"
+        raise NotImplemented()
+
+
+class _ScratchReader20(_ScratchProjectReader):
+    def to_sb2(self, json, assets):
+        raise NotImplemented("not currently implemented.")
+
+    def from_sb2(self, zipfile):
+        pass
+
+
+# ONLINE PROJECTS
+
+class ScratchProjectOnlineProxy(ScratchProject, _ScratchAuthenticatable):
+    def __init__(self, project_id=None):
+        """a proxy implementation of ScratchProject representing a scratch project stored on MIT servers
+        NOTE: assets will not be re-uploaded on save unless they are downloaded. This API does not provide high level
+        project modification capabilities. If you wish to change the project assets, you must call project.put_asset()
+        with any assets that you are adding to project, unless you know for sure they exist on the scratch assets server."""
+        super().__init__(self, load=project_id, instance=self)
+
+    def load(*args, reader=None, instance=None):
+        pass # TODO
+
+
+
+class OnlineScratchProject(_ScratchAuthenticatable, _ScratchUtils):
+    def __init__(self, project_id=None):
+        "Represents a project stored on the scratch website. May not be uploaded to the website yet if id is none"
+        self.project_id = project_id
+        self.loaded = False
+
+        self.author = None
+        self.shared = None
+        self.comments_enabled = None
+        self.created = None
+        self.modified = None
+        self.shared = None
+        self.thumbnails = None
+        self.instructions = None
+        self.credits = None
+        self.remix_original = None
+        self.remix_parent = None
+        self.views = None
+        self.loves = None
+        self.favorites = None
+        self.comments = None
+        self.remixes = None
+
+        self.project = None
+
+    def _ensure_loaded(self, session=None):
+        if not self.loaded:
+            return self.load(session)
+
+    def _put_data(self, data):
+        #self.author = ??
+        self.shared = self._tree(data, "is_published", False)
+        self.comments_enabled = self._tree(data, "comments_allowed", False)
+        self.shared = self._tree(data, "is_published", False)
+
+    def created(self):
+        "returns true if the project has an ID on the scratch website"
+        return self.project_id is not None
+
+    def load(self, session=None):
+        "downloads metadata from the scratch website"
+        assert self.created(), "the project must be created to be loaded"
+        session = self._session(session)
+        data = session.http(session.API_SERVER, "/projects/:project", self.project_id).json()
+
+    def get_project(self, session=None):
+
+        assert self.created()
+        session = self._session(session)
+        project = ScratchProjectOnlineProxy(self.project_id)
+
+
+# CLOUD SESSIONS
+
 class _CloudSessionWatchdog:
     def __init__(self, instance):
         self.enabled = True
@@ -585,7 +802,7 @@ class AIOCloudSession: # not sure exactly the usage cases of this thing because 
             except _websockets.ConnectionClosed:
                 await AIOCloudSession.reconnect()
                 continue
-            if (data == None) or (data == b""):
+            if (data is None) or (data == b""):
                 break
             try:
                 packet = _json.loads(data)
